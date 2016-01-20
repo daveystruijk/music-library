@@ -3,12 +3,15 @@ import readline
 import glob2
 import logging
 import shutil
+import re
+import subprocess
 from os import listdir, getcwd
 from os.path import splitext, basename, dirname, isdir, join
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON
+from mutagen.id3 import TIT2, TOPE, TCON, TKEY
 
 NEW_TRACKS_DIRECTORY = 'New'
+KEY_NOTATION = 'openkey'
 
 logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
@@ -18,6 +21,7 @@ def analyze(filepath):
     file_handle = open(filepath)
     mp3 = MP3(filepath)
     extract_title_and_artist_from_filename(file_handle, mp3)
+    detect_key(file_handle, mp3)
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
 
@@ -29,6 +33,19 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
         return
     mp3.tags.add(TIT2(encoding=3, text=tokens[1])) # title
     mp3.tags.add(TOPE(encoding=3, text=tokens[0])) # artist
+    mp3.save()
+
+def detect_key(file_handle, mp3):
+    key = mp3.tags.get('TKEY')
+    pattern = re.compile("^[1-9]{1,2}[md]$")
+    if (key != None and pattern.match(key.text[0])):
+        return # return if track already has a valid key
+    if not cmd_exists("keyfinder-cli"):
+        logging.warning("Cannot find keyfinder-cli")
+        return
+    logging.info("Detecting key...")
+    new_key = subprocess.check_output(["keyfinder-cli", "-n", KEY_NOTATION,file_handle.name])
+    mp3.tags.add(TKEY(encoding=3, text=new_key))
     mp3.save()
 
 def move_to_folder_if_new(file_handle, mp3):
@@ -57,6 +74,10 @@ def extract_genre_from_directory_name(file_handle, mp3):
         return
     mp3.tags.add(TCON(encoding=3, text=directory))
     mp3.save()
+
+def cmd_exists(cmd):
+    return subprocess.call("type " + cmd, shell=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
 tracks = glob2.glob("**/*.mp3")
 for track in tracks:
