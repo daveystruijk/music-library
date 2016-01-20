@@ -8,7 +8,7 @@ import subprocess
 from os import listdir, getcwd
 from os.path import splitext, basename, dirname, isdir, join
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON, TKEY
+from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM
 
 NEW_TRACKS_DIRECTORY = 'New'
 KEY_NOTATION = 'openkey'
@@ -22,6 +22,7 @@ def analyze(filepath):
     mp3 = MP3(filepath)
     extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
+    add_rating(file_handle, mp3)
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
 
@@ -47,6 +48,23 @@ def detect_key(file_handle, mp3):
     new_key = subprocess.check_output(["keyfinder-cli", "-n", KEY_NOTATION,file_handle.name])
     mp3.tags.add(TKEY(encoding=3, text=new_key))
     mp3.save()
+
+def add_rating(file_handle, mp3):
+    directory = dirname(file_handle.name)
+    popularimeter = mp3.tags.get(u'POPM:None')
+    if (popularimeter != None and directory != NEW_TRACKS_DIRECTORY):
+        return
+    print "What rating should this track have? [1-5]"
+    rating = None
+    while(rating == None):
+        stars = raw_input("Stars: ")
+        rating = stars_to_popm_value(stars)
+        print rating
+        if (rating != None):
+            mp3.tags.add(POPM(rating=rating))
+            mp3.save()
+        else:
+            print "Error, invalid rating"
 
 def move_to_folder_if_new(file_handle, mp3):
     directory = dirname(file_handle.name)
@@ -74,6 +92,20 @@ def extract_genre_from_directory_name(file_handle, mp3):
         return
     mp3.tags.add(TCON(encoding=3, text=directory))
     mp3.save()
+
+def stars_to_popm_value(stars):
+    try:
+        stars = int(stars)
+    except ValueError:
+        return None
+    values = {
+        1: 1,
+        2: 64,
+        3: 128,
+        4: 196,
+        5: 255
+    }
+    return values.get(stars, None)
 
 def cmd_exists(cmd):
     return subprocess.call("type " + cmd, shell=True,
