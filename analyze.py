@@ -7,22 +7,26 @@ import re
 import subprocess
 from os import listdir, getcwd
 from os.path import splitext, basename, dirname, isdir, join
+from colorama import init, Fore, Back, Style
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM
+from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE4
 
-NEW_TRACKS_DIRECTORY = 'New'
+NEW_TRACKS_DIRECTORY = '_New'
 KEY_NOTATION = 'openkey'
 
 logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
+init() # colorama
 
 def analyze(filepath):
-    print "\n=> %s" % filepath
+    print Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL
     file_handle = open(filepath)
     mp3 = MP3(filepath)
     extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
     add_rating(file_handle, mp3)
+    add_remixer(file_handle, mp3)
+    add_comment_tags(file_handle, mp3)
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
 
@@ -57,24 +61,58 @@ def add_rating(file_handle, mp3):
     print "What rating should this track have? [1-5]"
     rating = None
     while(rating == None):
-        stars = raw_input("Stars: ")
+        stars = get_input("Stars: ")
+        if (stars == '0'):
+            mp3.tags.delall('POPM')
+            mp3.save()
+            return
         rating = stars_to_popm_value(stars)
-        print rating
         if (rating != None):
-            mp3.tags.add(POPM(rating=rating))
+            mp3.tags.setall('POPM', [POPM(rating=rating)])
             mp3.save()
         else:
             print "Error, invalid rating"
+
+def add_remixer(file_handle, mp3):
+    directory = dirname(file_handle.name)
+    if (directory != NEW_TRACKS_DIRECTORY):
+        return
+    print "If this is a remix, enter the remixer (else, leave empty)"
+    new_remixer = get_input("Remixer: ")
+    if (new_remixer == ''):
+        mp3.tags.delall('TPE4')
+        mp3.save()
+    else:
+        mp3.tags.add(TPE4(encoding=3, text=new_remixer))
+        mp3.save()
+
+def add_comment_tags(file_handle, mp3):
+    directory = dirname(file_handle.name)
+    if (directory != NEW_TRACKS_DIRECTORY):
+        return
+    comments = mp3.tags.getall('COMM')
+    print "Current comments: %s" % map(lambda c: c.text[0], comments)
+    print "Enter new comment or press enter to leave unchanged (or 'clear' to delete)"
+    new_comment = get_input("Comment: ")
+    new_comment = new_comment.strip()
+    if (new_comment == 'clear'):
+        mp3.tags.delall('COMM')
+        mp3.save()
+    elif (new_comment != ''):
+        mp3.tags.setall('COMM', [COMM(encoding=3, lang='eng', text=new_comment)])
+        mp3.save()
 
 def move_to_folder_if_new(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
         return file_handle, mp3
-    print "New file! Which genre should it be moved to?"
+    print "Which genre should it be moved to? (leave empty to move nothing)"
     possible_directories = [d for d in glob2.glob("*") if isdir(d)]
     new_directory = ''
     while (new_directory not in possible_directories):
-        new_directory = raw_input("Genre: ")
+        new_directory = get_input("Genre: ")
+        if (new_directory == ''):
+            return file_handle, mp3
         if (new_directory in possible_directories):
             old_filename = file_handle.name
             new_filename = new_directory + '/' + basename(file_handle.name)
@@ -106,6 +144,9 @@ def stars_to_popm_value(stars):
         5: 255
     }
     return values.get(stars, None)
+
+def get_input(text):
+    return raw_input(Fore.YELLOW + text + Style.RESET_ALL).strip()
 
 def cmd_exists(cmd):
     return subprocess.call("type " + cmd, shell=True,
