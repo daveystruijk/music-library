@@ -22,6 +22,7 @@ def analyze(filepath):
     print Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL
     file_handle = open(filepath)
     mp3 = MP3(filepath)
+    warn_low_bitrate(file_handle, mp3)
     extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
     add_rating(file_handle, mp3)
@@ -29,6 +30,11 @@ def analyze(filepath):
     add_comment_tags(file_handle, mp3)
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
+
+def warn_low_bitrate(file_handle, mp3):
+    kbps = mp3.info.bitrate / 1000
+    if (kbps < 200):
+        logger.warning("Low bitrate: " % kbps)
 
 def extract_title_and_artist_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
