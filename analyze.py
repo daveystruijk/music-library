@@ -13,6 +13,8 @@ from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE4
 
 NEW_TRACKS_DIRECTORY = '_New'
 KEY_NOTATION = 'openkey'
+SPECTRUM_ANALYZER_PATH = '/opt/homebrew-cask/Caskroom/spek/0.8.3/Spek.app'
+MUSIC_PLAYER_PATH = '/Applications/iTunes.app'
 
 logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
@@ -22,6 +24,8 @@ def analyze(filepath):
     print Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL
     file_handle = open(filepath)
     mp3 = MP3(filepath)
+    open_music_player(file_handle, mp3)
+    open_spectrum_analyzer(file_handle, mp3)
     warn_low_bitrate(file_handle, mp3)
     extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
@@ -31,9 +35,17 @@ def analyze(filepath):
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
 
+def open_music_player(file_handle, mp3):
+    if (dirname(file_handle.name) == NEW_TRACKS_DIRECTORY):
+        subprocess.call(['open', '-g', '-a', MUSIC_PLAYER_PATH, file_handle.name])
+
+def open_spectrum_analyzer(file_handle, mp3):
+    if (dirname(file_handle.name) == NEW_TRACKS_DIRECTORY):
+        subprocess.call(['open', '-g', '-a', SPECTRUM_ANALYZER_PATH, file_handle.name])
+
 def warn_low_bitrate(file_handle, mp3):
     kbps = mp3.info.bitrate / 1000
-    if (kbps < 200):
+    if (kbps < 250):
         logger.warning("Low bitrate: " % kbps)
 
 def extract_title_and_artist_from_filename(file_handle, mp3):
@@ -55,7 +67,7 @@ def detect_key(file_handle, mp3):
         logging.warning("Cannot find keyfinder-cli")
         return
     logging.info("Detecting key...")
-    new_key = subprocess.check_output(["keyfinder-cli", "-n", KEY_NOTATION,file_handle.name])
+    new_key = subprocess.check_output(["keyfinder-cli", "-n", KEY_NOTATION,file_handle.name]).strip()
     mp3.tags.add(TKEY(encoding=3, text=new_key))
     mp3.save()
 
