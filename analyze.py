@@ -8,8 +8,10 @@ import subprocess
 from os import listdir, getcwd
 from os.path import splitext, basename, dirname, isdir, join
 from colorama import init, Fore, Back, Style
+from mutagen import File
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE4
+from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE4, ID3NoHeaderError
+from mutagen.easyid3 import EasyID3
 
 NEW_TRACKS_DIRECTORY = '_New'
 KEY_NOTATION = 'openkey'
@@ -23,17 +25,27 @@ init() # colorama
 def analyze(filepath):
     print Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL
     file_handle = open(filepath)
+    ensure_id3_tag_present(filepath)
     mp3 = MP3(filepath)
     open_music_player(file_handle, mp3)
     open_spectrum_analyzer(file_handle, mp3)
     warn_low_bitrate(file_handle, mp3)
     extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
-    add_rating(file_handle, mp3)
-    add_remixer(file_handle, mp3)
-    add_comment_tags(file_handle, mp3)
+    #add_rating(file_handle, mp3)
+    #add_remixer(file_handle, mp3)
+    #add_comment_tags(file_handle, mp3)
+    clear_comments(file_handle, mp3)
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
+
+def ensure_id3_tag_present(filepath):
+    try:
+        meta = EasyID3(filepath)
+    except ID3NoHeaderError:
+        meta = File(filepath, easy=True)
+        meta.add_tags()
+        meta.save()
 
 def open_music_player(file_handle, mp3):
     if (dirname(file_handle.name) == NEW_TRACKS_DIRECTORY):
@@ -46,7 +58,7 @@ def open_spectrum_analyzer(file_handle, mp3):
 def warn_low_bitrate(file_handle, mp3):
     kbps = mp3.info.bitrate / 1000
     if (kbps < 250):
-        logger.warning("Low bitrate: " % kbps)
+        logging.warning("Low bitrate: %s" % kbps)
 
 def extract_title_and_artist_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
@@ -60,7 +72,7 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
 
 def detect_key(file_handle, mp3):
     key = mp3.tags.get('TKEY')
-    pattern = re.compile("^[1-9]{1,2}[md]$")
+    pattern = re.compile("^[0-9]{1,2}[md]$")
     if (key != None and pattern.match(key.text[0])):
         return # return if track already has a valid key
     if not cmd_exists("keyfinder-cli"):
@@ -120,6 +132,13 @@ def add_comment_tags(file_handle, mp3):
         mp3.tags.setall('COMM', [COMM(encoding=3, lang='eng', text=new_comment)])
         mp3.save()
 
+def clear_comments(file_handle, mp3):
+    directory = dirname(file_handle.name)
+    if (directory != NEW_TRACKS_DIRECTORY):
+        return
+    mp3.tags.delall('COMM')
+    mp3.save()
+
 def move_to_folder_if_new(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
@@ -128,9 +147,13 @@ def move_to_folder_if_new(file_handle, mp3):
     possible_directories = [d for d in glob2.glob("*") if isdir(d)]
     new_directory = ''
     while (new_directory not in possible_directories):
-        new_directory = get_input("Genre: ")
-        if (new_directory == ''):
+        input_directory = get_input("Genre: ")
+        if (input_directory == ''):
             return file_handle, mp3
+	for new_dir in possible_directories:
+	    if new_dir.startswith(input_directory):
+		new_directory=new_dir
+		break
         if (new_directory in possible_directories):
             old_filename = file_handle.name
             new_filename = new_directory + '/' + basename(file_handle.name)
