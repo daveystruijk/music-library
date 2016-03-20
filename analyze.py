@@ -5,7 +5,7 @@ import logging
 import shutil
 import re
 import subprocess
-from os import listdir, getcwd
+from os import listdir, getcwd, remove
 from os.path import splitext, basename, dirname, isdir, join
 from colorama import init, Fore, Back, Style
 from mutagen import File
@@ -14,6 +14,7 @@ from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE4, ID3NoHeaderErr
 from mutagen.easyid3 import EasyID3
 
 NEW_TRACKS_DIRECTORY = '_New'
+PLAYLISTS_DIRECTORY = '_Playlists'
 KEY_NOTATION = 'openkey'
 SPECTRUM_ANALYZER_PATH = '/opt/homebrew-cask/Caskroom/spek/0.8.3/Spek.app'
 MUSIC_PLAYER_PATH = '/Applications/iTunes.app'
@@ -193,6 +194,24 @@ def cmd_exists(cmd):
     return subprocess.call("type " + cmd, shell=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
-tracks = glob2.glob("**/*.mp3")
+# Analysis process for each track
+tracks = glob2.glob("**/*.[mM][pP]3")
 for track in tracks:
     analyze(track)
+
+# Clear playlists directory
+m3u_files = glob2.glob(PLAYLISTS_DIRECTORY + "/*.[mM]3[uU]")
+for m3u_file in m3u_files:
+    remove(m3u_file)
+
+# Generate playlist files
+directories = [ p.replace('/', '') for p in glob2.glob('*/') ]
+for directory in directories:
+    if (directory.startswith('_')):
+        continue
+    playlist_file = open(PLAYLISTS_DIRECTORY + '/' + directory + '.m3u', 'w')
+    tracks = glob2.glob(directory + "/*.[mM][pP]3")
+    playlist_file.write("#EXTM3U\n")
+    for track in tracks:
+        playlist_file.write("../" + track + "\n")
+    playlist_file.close()
