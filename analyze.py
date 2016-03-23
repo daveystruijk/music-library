@@ -19,7 +19,7 @@ KEY_NOTATION = 'openkey'
 SPECTRUM_ANALYZER_PATH = '/opt/homebrew-cask/Caskroom/spek/0.8.3/Spek.app'
 MUSIC_PLAYER_PATH = '/Applications/iTunes.app'
 
-logging.basicConfig(format='%(levelname)s: %(message)s')
+logging.basicConfig(format=Fore.MAGENTA + '%(levelname)s: %(message)s' + Style.RESET_ALL)
 logging.getLogger().setLevel(logging.INFO)
 init() # colorama
 
@@ -195,6 +195,7 @@ def cmd_exists(cmd):
             stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
 # Analysis process for each track
+print "\nAnalyzing tracks..."
 tracks = glob2.glob("**/*.[mM][pP]3")
 for track in tracks:
     analyze(track)
@@ -205,11 +206,14 @@ for m3u_file in m3u_files:
     remove(m3u_file)
 
 # Generate playlist files
+print "\nGenerating playlist files..."
 directories = [ p.replace('/', '') for p in glob2.glob('*/') ]
 for directory in directories:
     if (directory.startswith('_')):
         continue
-    playlist_file = open(PLAYLISTS_DIRECTORY + '/' + directory + '.m3u', 'w')
+    playlist_path = PLAYLISTS_DIRECTORY + '/' + directory + '.m3u'
+    print Fore.GREEN + "=> %s" % playlist_path + Style.RESET_ALL
+    playlist_file = open(playlist_path, 'w')
     tracks = glob2.glob(directory + "/*.[mM][pP]3")
     playlist_file.write("#EXTM3U\n")
     for track in tracks:
