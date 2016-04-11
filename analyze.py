@@ -5,7 +5,7 @@ import logging
 import shutil
 import re
 import subprocess
-from os import listdir, getcwd, remove
+from os import listdir, getcwd, remove, rename
 from os.path import splitext, basename, dirname, isdir, join
 from colorama import init, Fore, Back, Style
 from mutagen import File
@@ -31,7 +31,7 @@ def analyze(filepath):
     open_music_player(file_handle, mp3)
     open_spectrum_analyzer(file_handle, mp3)
     warn_low_bitrate(file_handle, mp3)
-    extract_title_and_artist_from_filename(file_handle, mp3)
+    file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
     #add_rating(file_handle, mp3)
     #add_remixer(file_handle, mp3)
@@ -65,11 +65,26 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
     tokens = filename.split(' - ')
     if (len(tokens) != 2):
-        logging.warning("Cannot extract title and artist from filename")
-        return
-    mp3.tags.add(TIT2(encoding=3, text=tokens[1])) # title
-    mp3.tags.add(TOPE(encoding=3, text=tokens[0])) # artist
-    mp3.save()
+        title = mp3.tags.get('TIT2')
+        artist = mp3.tags.get('TPE1')
+        if (title == None or artist == None):
+            print "Cannot extract title and artist from filename"
+        else:
+            new_filename = artist.text[0] + ' - ' + title.text[0]
+            print "Cannot extract title and artist from filename. Rename file to '%s' ?" % new_filename
+            answer = get_input('y/n: ')
+            if (answer == 'y'):
+                new_location = dirname(file_handle.name) + '/' + new_filename + '.mp3'
+                rename(file_handle.name, new_location)
+                print "File renamed as %s" % new_location
+                file_handle.close()
+                return open(new_location), MP3(new_location)
+        return file_handle, mp3
+    else:
+        mp3.tags.add(TIT2(encoding=3, text=tokens[1])) # title
+        mp3.tags.add(TOPE(encoding=3, text=tokens[0])) # artist
+        mp3.save()
+        return file_handle, mp3
 
 def detect_key(file_handle, mp3):
     key = mp3.tags.get('TKEY')
