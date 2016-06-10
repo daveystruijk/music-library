@@ -64,14 +64,25 @@ def warn_low_bitrate(file_handle, mp3):
 
 def remove_unwanted_text_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
-    regex_1 = "\(.*(original|dirty|clean|extended|radio edit).*\)"
-    regex_2 = "\[.*(original|dirty|clean|extended|radio edit).*\]"
-    pattern_1 = re.compile(regex_1, re.IGNORECASE)
-    pattern_2 = re.compile(regex_2, re.IGNORECASE)
-    filename = pattern_1.sub('', filename)
-    filename = pattern_2.sub('', filename)
-    print filename
-    return file_handle, mp3
+    for regex in [
+            "\(.*(original|dirty|clean|extended|radio edit).*\)",
+            "\[.*(original|dirty|clean|extended|radio edit).*\]"
+        ]:
+        pattern = re.compile(regex, re.IGNORECASE)
+        result = re.search(pattern, filename)
+        # Definitely drop matches with 'remix' or 'bootleg' in it,
+        # as we don't want to lose important information.
+        if result != None and not any(word in result.group().lower() for word in ["remix", "bootleg"]):
+            print "- " + Fore.YELLOW + result.group() + Style.RESET_ALL
+            filename = pattern.sub('', filename).strip()
+    new_location = dirname(file_handle.name) + '/' + filename + '.mp3'
+    if file_handle.name != new_location:
+        rename(file_handle.name, new_location)
+        print "File renamed as %s" % new_location
+        file_handle.close()
+        return open(new_location), MP3(new_location)
+    else:
+        return file_handle, mp3
 
 def extract_title_and_artist_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
