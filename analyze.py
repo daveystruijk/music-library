@@ -10,7 +10,7 @@ from os.path import splitext, basename, dirname, isdir, join
 from colorama import init, Fore, Back, Style
 from mutagen import File
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE4, ID3NoHeaderError
+from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE1, TPE4, ID3NoHeaderError
 from mutagen.easyid3 import EasyID3
 
 NEW_TRACKS_DIRECTORY = '_New'
@@ -31,6 +31,7 @@ def analyze(filepath):
     open_music_player(file_handle, mp3)
     open_spectrum_analyzer(file_handle, mp3)
     warn_low_bitrate(file_handle, mp3)
+    file_handle, mp3 = remove_unwanted_text_from_filename(file_handle, mp3)
     file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
     #add_rating(file_handle, mp3)
@@ -61,6 +62,17 @@ def warn_low_bitrate(file_handle, mp3):
     if (kbps < 250):
         logging.warning("Low bitrate: %s" % kbps)
 
+def remove_unwanted_text_from_filename(file_handle, mp3):
+    filename = splitext(basename(file_handle.name))[0]
+    regex_1 = "\(.*(original|dirty|clean|extended|radio edit).*\)"
+    regex_2 = "\[.*(original|dirty|clean|extended|radio edit).*\]"
+    pattern_1 = re.compile(regex_1, re.IGNORECASE)
+    pattern_2 = re.compile(regex_2, re.IGNORECASE)
+    filename = pattern_1.sub('', filename)
+    filename = pattern_2.sub('', filename)
+    print filename
+    return file_handle, mp3
+
 def extract_title_and_artist_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
     tokens = filename.split(' - ')
@@ -82,7 +94,8 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
         return file_handle, mp3
     else:
         mp3.tags.add(TIT2(encoding=3, text=tokens[1])) # title
-        mp3.tags.add(TOPE(encoding=3, text=tokens[0])) # artist
+        mp3.tags.add(TOPE(encoding=3, text=tokens[0])) # original artist
+        mp3.tags.add(TPE1(encoding=3, text=tokens[0])) # artist
         mp3.save()
         return file_handle, mp3
 
