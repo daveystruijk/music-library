@@ -5,20 +5,24 @@ import logging
 import shutil
 import re
 import subprocess
-from os import listdir, getcwd, remove, rename
+import time
+from os import listdir, getcwd, remove, rename, getenv
 from os.path import splitext, basename, dirname, isdir, join
 from colorama import init, Fore, Back, Style
 from mutagen import File
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE1, TPE4, ID3NoHeaderError
+from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE1, TPE4, TDRC, ID3NoHeaderError
 from mutagen.easyid3 import EasyID3
+import discogs_client
 
 NEW_TRACKS_DIRECTORY = '_New'
 PLAYLISTS_DIRECTORY = '_Playlists'
 KEY_NOTATION = 'openkey'
 SPECTRUM_ANALYZER_PATH = '/opt/homebrew-cask/Caskroom/spek/0.8.3/Spek.app'
 MUSIC_PLAYER_PATH = '/Applications/iTunes.app'
+DISCOGS_USER_TOKEN = getenv('DISCOGS_USER_TOKEN', '')
 
+d = discogs_client.Client('MusicLibrary/0.1', user_token=DISCOGS_USER_TOKEN)
 logging.basicConfig(format=Fore.MAGENTA + '%(levelname)s: %(message)s' + Style.RESET_ALL)
 logging.getLogger().setLevel(logging.INFO)
 init() # colorama
@@ -34,6 +38,9 @@ def analyze(filepath):
     file_handle, mp3 = remove_unwanted_text_from_filename(file_handle, mp3)
     file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
+    pad_key(file_handle, mp3)
+    get_year_from_discogs_api(file_handle, mp3)
+    #add_key_to_title_tag(file_handle, mp3)
     #add_rating(file_handle, mp3)
     #add_remixer(file_handle, mp3)
     #add_comment_tags(file_handle, mp3)
@@ -122,6 +129,39 @@ def detect_key(file_handle, mp3):
     new_key = subprocess.check_output(["keyfinder-cli", "-n", KEY_NOTATION,file_handle.name]).strip()
     mp3.tags.add(TKEY(encoding=3, text=new_key))
     mp3.save()
+
+def pad_key(file_handle, mp3):
+    key = mp3.tags.get('TKEY')
+    if key != None and len(key.text[0]) == 2:
+        new_key = "0" + key.text[0]
+        mp3.tags.add(TKEY(encoding=3, text=new_key))
+        mp3.save()
+
+def add_key_to_title_tag(file_handle, mp3):
+    key = mp3.tags.get('TKEY')
+    title = mp3.tags.get('TIT2')
+    if title != None and key != None:
+        new_title = key.text[0] + "] " + title.text[0]
+        mp3.tags.add(TIT2(encoding=3, text=new_title)) # title
+        mp3.save()
+
+def get_year_from_discogs_api(file_handle, mp3):
+    if DISCOGS_USER_TOKEN == '':
+        return
+    year = mp3.tags.get('TDRC')
+    if year != None:
+        return # return if year already exists
+    track_name = splitext(basename(file_handle.name))[0]
+    results = d.search(track_name, type='release')
+    if len(results) > 0:
+        new_year = str(results[0].year)
+        print "Found release year: %s" % new_year
+        mp3.tags.add(TDRC(encoding=3, text=new_year))
+        mp3.save()
+    else:
+        print "Could not fetch any release from Discogs API"
+
+    time.sleep(5)
 
 def add_rating(file_handle, mp3):
     directory = dirname(file_handle.name)
