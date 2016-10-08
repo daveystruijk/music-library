@@ -39,7 +39,7 @@ def analyze(filepath):
     file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
     pad_key(file_handle, mp3)
-    get_year_from_discogs_api(file_handle, mp3)
+    #get_year_from_discogs_api(file_handle, mp3)
     #add_key_to_title_tag(file_handle, mp3)
     #add_rating(file_handle, mp3)
     #add_remixer(file_handle, mp3)
@@ -80,7 +80,7 @@ def remove_unwanted_text_from_filename(file_handle, mp3):
         # Definitely drop matches with 'remix' or 'bootleg' in it,
         # as we don't want to lose important information.
         if result != None and not any(word in result.group().lower() for word in ["remix", "bootleg"]):
-            print "- " + Fore.YELLOW + result.group() + Style.RESET_ALL
+            print "Removed " + Fore.YELLOW + result.group() + Style.RESET_ALL + " from filename"
             filename = pattern.sub('', filename).strip()
     new_location = dirname(file_handle.name) + '/' + filename + '.mp3'
     if file_handle.name != new_location:
@@ -146,7 +146,7 @@ def add_key_to_title_tag(file_handle, mp3):
         mp3.save()
 
 def get_year_from_discogs_api(file_handle, mp3):
-    if DISCOGS_USER_TOKEN == '':
+    if DISCOGS_USER_TOKEN == '' or dirname(file_handle.name) != NEW_TRACKS_DIRECTORY:
         return
     year = mp3.tags.get('TDRC')
     if year != None:
