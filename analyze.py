@@ -28,12 +28,12 @@ logging.getLogger().setLevel(logging.INFO)
 init() # colorama
 
 def analyze(filepath):
-    print Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL
+    print(Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL)
     file_handle = open(filepath)
     ensure_id3_tag_present(filepath)
     mp3 = MP3(filepath)
     open_music_player(file_handle, mp3)
-    open_spectrum_analyzer(file_handle, mp3)
+    #open_spectrum_analyzer(file_handle, mp3)
     warn_low_bitrate(file_handle, mp3)
     file_handle, mp3 = remove_unwanted_text_from_filename(file_handle, mp3)
     file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
@@ -80,12 +80,12 @@ def remove_unwanted_text_from_filename(file_handle, mp3):
         # Definitely drop matches with 'remix' or 'bootleg' in it,
         # as we don't want to lose important information.
         if result != None and not any(word in result.group().lower() for word in ["remix", "bootleg"]):
-            print "Removed " + Fore.YELLOW + result.group() + Style.RESET_ALL + " from filename"
+            print("Removed " + Fore.YELLOW + result.group() + Style.RESET_ALL + " from filename")
             filename = pattern.sub('', filename).strip()
     new_location = dirname(file_handle.name) + '/' + filename + '.mp3'
     if file_handle.name != new_location:
         rename(file_handle.name, new_location)
-        print "File renamed as %s" % new_location
+        print("File renamed as %s" % new_location)
         file_handle.close()
         return open(new_location), MP3(new_location)
     else:
@@ -98,15 +98,15 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
         title = mp3.tags.get('TIT2')
         artist = mp3.tags.get('TPE1')
         if (title == None or artist == None):
-            print "Cannot extract title and artist from filename"
+            print("Cannot extract title and artist from filename")
         else:
             new_filename = artist.text[0] + ' - ' + title.text[0]
-            print "Cannot extract title and artist from filename. Rename file to '%s' ?" % new_filename
+            print("Cannot extract title and artist from filename. Rename file to '%s' ?" % new_filename)
             answer = get_input('y/n: ')
             if (answer == 'y'):
                 new_location = dirname(file_handle.name) + '/' + new_filename + '.mp3'
                 rename(file_handle.name, new_location)
-                print "File renamed as %s" % new_location
+                print("File renamed as %s" % new_location)
                 file_handle.close()
                 return open(new_location), MP3(new_location)
         return file_handle, mp3
@@ -127,7 +127,7 @@ def detect_key(file_handle, mp3):
         return
     logging.info("Detecting key...")
     new_key = subprocess.check_output(["keyfinder-cli", "-n", KEY_NOTATION,file_handle.name]).strip()
-    mp3.tags.add(TKEY(encoding=3, text=new_key))
+    mp3.tags.add(TKEY(encoding=3, text=new_key.decode()))
     mp3.save()
 
 def pad_key(file_handle, mp3):
@@ -155,11 +155,11 @@ def get_year_from_discogs_api(file_handle, mp3):
     results = d.search(track_name, type='release')
     if len(results) > 0:
         new_year = str(results[0].year)
-        print "Found release year: %s" % new_year
+        print("Found release year: %s" % new_year)
         mp3.tags.add(TDRC(encoding=3, text=new_year))
         mp3.save()
     else:
-        print "Could not fetch any release from Discogs API"
+        print("Could not fetch any release from Discogs API")
 
     time.sleep(5)
 
@@ -168,7 +168,7 @@ def add_rating(file_handle, mp3):
     popularimeter = mp3.tags.get(u'POPM:None')
     if (popularimeter != None and directory != NEW_TRACKS_DIRECTORY):
         return
-    print "What rating should this track have? [1-5]"
+    print("What rating should this track have? [1-5]")
     rating = None
     while(rating == None):
         stars = get_input("Stars: ")
@@ -181,13 +181,13 @@ def add_rating(file_handle, mp3):
             mp3.tags.setall('POPM', [POPM(rating=rating)])
             mp3.save()
         else:
-            print "Error, invalid rating"
+            print("Error, invalid rating")
 
 def add_remixer(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
         return
-    print "If this is a remix, enter the remixer (else, leave empty)"
+    print("If this is a remix, enter the remixer (else, leave empty)")
     new_remixer = get_input("Remixer: ")
     if (new_remixer == ''):
         mp3.tags.delall('TPE4')
@@ -201,8 +201,8 @@ def add_comment_tags(file_handle, mp3):
     if (directory != NEW_TRACKS_DIRECTORY):
         return
     comments = mp3.tags.getall('COMM')
-    print "Current comments: %s" % map(lambda c: c.text[0], comments)
-    print "Enter new comment or press enter to leave unchanged (or 'clear' to delete)"
+    print("Current comments: %s" % map(lambda c: c.text[0], comments))
+    print("Enter new comment or press enter to leave unchanged (or 'clear' to delete)")
     new_comment = get_input("Comment: ")
     new_comment = new_comment.strip()
     if (new_comment == 'clear'):
@@ -223,26 +223,26 @@ def move_to_folder_if_new(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
         return file_handle, mp3
-    print "Which genre should it be moved to? (leave empty to move nothing)"
+    print("Which genre should it be moved to? (leave empty to move nothing)")
     possible_directories = [d for d in glob2.glob("*") if isdir(d)]
     new_directory = ''
     while (new_directory not in possible_directories):
         input_directory = get_input("Genre: ")
         if (input_directory == ''):
             return file_handle, mp3
-	for new_dir in possible_directories:
-	    if new_dir.startswith(input_directory):
-		new_directory=new_dir
-		break
+        for new_dir in possible_directories:
+            if new_dir.startswith(input_directory):
+                new_directory=new_dir
+                break
         if (new_directory in possible_directories):
             old_filename = file_handle.name
             new_filename = new_directory + '/' + basename(file_handle.name)
-            print "Moving file from %s to %s" % (directory, new_directory)
+            print("Moving file from %s to %s" % (directory, new_directory))
             file_handle.close()
             shutil.move(old_filename, new_filename)
             return open(new_filename), MP3(new_filename)
         else:
-            print "Error, there's no directory for that genre"
+            print("Error, there's no directory for that genre")
 
 def extract_genre_from_directory_name(file_handle, mp3):
     directory = dirname(file_handle.name)
@@ -267,14 +267,14 @@ def stars_to_popm_value(stars):
     return values.get(stars, None)
 
 def get_input(text):
-    return raw_input(Fore.YELLOW + text + Style.RESET_ALL).strip()
+    return input(Fore.YELLOW + text + Style.RESET_ALL).strip()
 
 def cmd_exists(cmd):
     return subprocess.call("type " + cmd, shell=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
 # Analysis process for each track
-print "\nAnalyzing tracks..."
+print("\nAnalyzing tracks...")
 tracks = glob2.glob("**/*.[mM][pP]3")
 for track in tracks:
     analyze(track)
@@ -285,13 +285,13 @@ for m3u_file in m3u_files:
     remove(m3u_file)
 
 # Generate playlist files
-print "\nGenerating playlist files..."
+print("\nGenerating playlist files...")
 directories = [ p.replace('/', '') for p in glob2.glob('*/') ]
 for directory in directories:
     if (directory.startswith('_')):
         continue
     playlist_path = PLAYLISTS_DIRECTORY + '/' + directory + '.m3u'
-    print Fore.GREEN + "=> %s" % playlist_path + Style.RESET_ALL
+    print(Fore.GREEN + "=> %s" % playlist_path + Style.RESET_ALL)
     playlist_file = open(playlist_path, 'w')
     tracks = glob2.glob(directory + "/*.[mM][pP]3")
     playlist_file.write("#EXTM3U\n")
