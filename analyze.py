@@ -6,26 +6,37 @@ import shutil
 import re
 import subprocess
 import time
+from collections import defaultdict
 from os import listdir, getcwd, remove, rename, getenv
 from os.path import splitext, basename, dirname, isdir, join
 from colorama import init, Fore, Back, Style
 from mutagen import File
 from mutagen.mp3 import MP3
-from mutagen.id3 import TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE1, TPE4, TDRC, ID3NoHeaderError
-from mutagen.easyid3 import EasyID3
+from mutagen.id3 import ID3, TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE1, TPE4, TDRC, ID3NoHeaderError
 import discogs_client
 
 NEW_TRACKS_DIRECTORY = '_New'
 PLAYLISTS_DIRECTORY = '_Playlists'
 KEY_NOTATION = 'openkey'
-SPECTRUM_ANALYZER_PATH = '/opt/homebrew-cask/Caskroom/spek/0.8.3/Spek.app'
+SPECTRUM_ANALYZER_PATH = '/Applications/Spek.app'
 MUSIC_PLAYER_PATH = '/Applications/iTunes.app'
 DISCOGS_USER_TOKEN = getenv('DISCOGS_USER_TOKEN', '')
 
-d = discogs_client.Client('MusicLibrary/0.1', user_token=DISCOGS_USER_TOKEN)
+DISCOGS = discogs_client.Client('MusicLibrary/0.1', user_token=DISCOGS_USER_TOKEN)
 logging.basicConfig(format=Fore.MAGENTA + '%(levelname)s: %(message)s' + Style.RESET_ALL)
 logging.getLogger().setLevel(logging.INFO)
+TIMINGS = defaultdict(float)
 init() # colorama
+
+def count_time(f):
+    def wrap(*args):
+        time1 = time.time()
+        ret = f(*args)
+        time2 = time.time()
+        TIMINGS[f.__name__] += (time2-time1)
+        return ret
+    return wrap
+
 
 def analyze(filepath):
     print(Fore.GREEN + "\n=> %s" % filepath + Style.RESET_ALL)
@@ -48,27 +59,32 @@ def analyze(filepath):
     file_handle, mp3 = move_to_folder_if_new(file_handle, mp3)
     extract_genre_from_directory_name(file_handle, mp3)
 
+@count_time
 def ensure_id3_tag_present(filepath):
     try:
-        meta = EasyID3(filepath)
+        meta = ID3(filepath)
     except ID3NoHeaderError:
         meta = File(filepath, easy=True)
         meta.add_tags()
         meta.save()
 
+@count_time
 def open_music_player(file_handle, mp3):
     if (dirname(file_handle.name) == NEW_TRACKS_DIRECTORY):
         subprocess.call(['open', '-g', '-a', MUSIC_PLAYER_PATH, file_handle.name])
 
+@count_time
 def open_spectrum_analyzer(file_handle, mp3):
     if (dirname(file_handle.name) == NEW_TRACKS_DIRECTORY):
         subprocess.call(['open', '-g', '-a', SPECTRUM_ANALYZER_PATH, file_handle.name])
 
+@count_time
 def warn_low_bitrate(file_handle, mp3):
     kbps = mp3.info.bitrate / 1000
     if (kbps < 250):
         logging.warning("Low bitrate: %s" % kbps)
 
+@count_time
 def remove_unwanted_text_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
     for regex in [
@@ -91,6 +107,7 @@ def remove_unwanted_text_from_filename(file_handle, mp3):
     else:
         return file_handle, mp3
 
+@count_time
 def extract_title_and_artist_from_filename(file_handle, mp3):
     filename = splitext(basename(file_handle.name))[0]
     tokens = filename.split(' - ')
@@ -117,6 +134,7 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
         mp3.save()
         return file_handle, mp3
 
+@count_time
 def detect_key(file_handle, mp3):
     key = mp3.tags.get('TKEY')
     pattern = re.compile("^[0-9]{1,2}[md]$")
@@ -130,6 +148,7 @@ def detect_key(file_handle, mp3):
     mp3.tags.add(TKEY(encoding=3, text=new_key.decode()))
     mp3.save()
 
+@count_time
 def pad_key(file_handle, mp3):
     key = mp3.tags.get('TKEY')
     if key != None and len(key.text[0]) == 2:
@@ -137,6 +156,7 @@ def pad_key(file_handle, mp3):
         mp3.tags.add(TKEY(encoding=3, text=new_key))
         mp3.save()
 
+@count_time
 def add_key_to_title_tag(file_handle, mp3):
     key = mp3.tags.get('TKEY')
     title = mp3.tags.get('TIT2')
@@ -145,6 +165,7 @@ def add_key_to_title_tag(file_handle, mp3):
         mp3.tags.add(TIT2(encoding=3, text=new_title)) # title
         mp3.save()
 
+@count_time
 def get_year_from_discogs_api(file_handle, mp3):
     if DISCOGS_USER_TOKEN == '' or dirname(file_handle.name) != NEW_TRACKS_DIRECTORY:
         return
@@ -160,9 +181,9 @@ def get_year_from_discogs_api(file_handle, mp3):
         mp3.save()
     else:
         print("Could not fetch any release from Discogs API")
-
     time.sleep(5)
 
+@count_time
 def add_rating(file_handle, mp3):
     directory = dirname(file_handle.name)
     popularimeter = mp3.tags.get(u'POPM:None')
@@ -183,6 +204,7 @@ def add_rating(file_handle, mp3):
         else:
             print("Error, invalid rating")
 
+@count_time
 def add_remixer(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
@@ -196,6 +218,7 @@ def add_remixer(file_handle, mp3):
         mp3.tags.add(TPE4(encoding=3, text=new_remixer))
         mp3.save()
 
+@count_time
 def add_comment_tags(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
@@ -212,6 +235,7 @@ def add_comment_tags(file_handle, mp3):
         mp3.tags.setall('COMM', [COMM(encoding=3, lang='eng', text=new_comment)])
         mp3.save()
 
+@count_time
 def clear_comments(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
@@ -219,6 +243,7 @@ def clear_comments(file_handle, mp3):
     mp3.tags.delall('COMM')
     mp3.save()
 
+@count_time
 def move_to_folder_if_new(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory != NEW_TRACKS_DIRECTORY):
@@ -244,6 +269,7 @@ def move_to_folder_if_new(file_handle, mp3):
         else:
             print("Error, there's no directory for that genre")
 
+@count_time
 def extract_genre_from_directory_name(file_handle, mp3):
     directory = dirname(file_handle.name)
     if (directory == ''):
@@ -275,12 +301,12 @@ def cmd_exists(cmd):
 
 # Analysis process for each track
 print("\nAnalyzing tracks...")
-tracks = glob2.glob("**/*.[mM][pP]3")
+tracks = sorted(glob2.glob("**/*.[mM][pP]3"), key=lambda x: x.replace('_', '0'))
 for track in tracks:
     analyze(track)
 
 # Clear playlists directory
-m3u_files = glob2.glob(PLAYLISTS_DIRECTORY + "/*.[mM]3[uU]")
+m3u_files = sorted(glob2.glob(PLAYLISTS_DIRECTORY + "/*.[mM]3[uU]"))
 for m3u_file in m3u_files:
     remove(m3u_file)
 
@@ -293,8 +319,13 @@ for directory in directories:
     playlist_path = PLAYLISTS_DIRECTORY + '/' + directory + '.m3u'
     print(Fore.GREEN + "=> %s" % playlist_path + Style.RESET_ALL)
     playlist_file = open(playlist_path, 'w')
-    tracks = glob2.glob(directory + "/*.[mM][pP]3")
+    tracks = sorted(glob2.glob(directory + "/*.[mM][pP]3"))
     playlist_file.write("#EXTM3U\n")
     for track in tracks:
         playlist_file.write("../" + track + "\n")
     playlist_file.close()
+
+print("\nTimings:")
+for func, seconds in TIMINGS.items():
+    print("{} took {}s".format(func, round(seconds, 3)))
+

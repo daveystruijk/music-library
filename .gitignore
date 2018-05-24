@@ -1,6 +1,6 @@
 *.mp3
 *.m4a
 *.wav
-*.m3u
 *.zip
+*.asd
 .DS_Store
