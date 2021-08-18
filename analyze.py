@@ -13,16 +13,13 @@ from colorama import init, Fore, Back, Style
 from mutagen import File
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TOPE, TCON, TKEY, POPM, COMM, TPE1, TPE4, TDRC, ID3NoHeaderError
-import discogs_client
 
 NEW_TRACKS_DIRECTORY = '_New'
 PLAYLISTS_DIRECTORY = '_Playlists'
 KEY_NOTATION = 'openkey'
 SPECTRUM_ANALYZER_PATH = '/Applications/Spek.app'
-MUSIC_PLAYER_PATH = '/Applications/iTunes.app'
-DISCOGS_USER_TOKEN = getenv('DISCOGS_USER_TOKEN', '')
+MUSIC_PLAYER_PATH = '/Applications/Music.app'
 
-DISCOGS = discogs_client.Client('MusicLibrary/0.1', user_token=DISCOGS_USER_TOKEN)
 logging.basicConfig(format=Fore.MAGENTA + '%(levelname)s: %(message)s' + Style.RESET_ALL)
 logging.getLogger().setLevel(logging.INFO)
 TIMINGS = defaultdict(float)
@@ -50,7 +47,6 @@ def analyze(filepath):
     file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
     detect_key(file_handle, mp3)
     pad_key(file_handle, mp3)
-    #get_year_from_discogs_api(file_handle, mp3)
     #add_key_to_title_tag(file_handle, mp3)
     #add_rating(file_handle, mp3)
     #add_remixer(file_handle, mp3)
@@ -164,24 +160,6 @@ def add_key_to_title_tag(file_handle, mp3):
         new_title = key.text[0] + "] " + title.text[0]
         mp3.tags.add(TIT2(encoding=3, text=new_title)) # title
         mp3.save()
-
-@count_time
-def get_year_from_discogs_api(file_handle, mp3):
-    if DISCOGS_USER_TOKEN == '' or dirname(file_handle.name) != NEW_TRACKS_DIRECTORY:
-        return
-    year = mp3.tags.get('TDRC')
-    if year != None:
-        return # return if year already exists
-    track_name = splitext(basename(file_handle.name))[0]
-    results = d.search(track_name, type='release')
-    if len(results) > 0:
-        new_year = str(results[0].year)
-        print("Found release year: %s" % new_year)
-        mp3.tags.add(TDRC(encoding=3, text=new_year))
-        mp3.save()
-    else:
-        print("Could not fetch any release from Discogs API")
-    time.sleep(5)
 
 @count_time
 def add_rating(file_handle, mp3):
