@@ -18,7 +18,7 @@ NEW_TRACKS_DIRECTORY = '_New'
 PLAYLISTS_DIRECTORY = '_Playlists'
 KEY_NOTATION = 'openkey'
 SPECTRUM_ANALYZER_PATH = '/Applications/Spek.app'
-MUSIC_PLAYER_PATH = '/Applications/Music.app'
+MUSIC_PLAYER_PATH = '/Applications/VLC.app'
 
 logging.basicConfig(format=Fore.MAGENTA + '%(levelname)s: %(message)s' + Style.RESET_ALL)
 logging.getLogger().setLevel(logging.INFO)
@@ -41,7 +41,7 @@ def analyze(filepath):
     ensure_id3_tag_present(filepath)
     mp3 = MP3(filepath)
     open_music_player(file_handle, mp3)
-    #open_spectrum_analyzer(file_handle, mp3)
+    open_spectrum_analyzer(file_handle, mp3)
     warn_low_bitrate(file_handle, mp3)
     file_handle, mp3 = remove_unwanted_text_from_filename(file_handle, mp3)
     file_handle, mp3 = extract_title_and_artist_from_filename(file_handle, mp3)
