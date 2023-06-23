@@ -133,6 +133,7 @@ def extract_title_and_artist_from_filename(file_handle, mp3):
 @count_time
 def detect_key(file_handle, mp3):
     key = mp3.tags.get('TKEY')
+    print(key)
     pattern = re.compile("^[0-9]{1,2}[md]$")
     if (key != None and pattern.match(key.text[0])):
         return # return if track already has a valid key
